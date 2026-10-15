@@ -34,4 +34,5 @@ android-widget/**/build/
 !/.comet/config.yaml
 # <<< Comet managed project state <<<
 tmp-smoke/
-cdt-monitor binary
+manual-test-data/
+cdt-monitor
