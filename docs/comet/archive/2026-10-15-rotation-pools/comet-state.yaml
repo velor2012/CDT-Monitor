@@ -2,8 +2,8 @@ schema: comet.native.v4
 name: rotation-pools
 language: zh-CN
 phase: archive
-status: active
-state_version: 20
+status: done
+state_version: 22
 brief: brief.md
 document_constraints_version: 2
 shape_confirmation_hash: 64e4adfa400975b8312f3f12590035ea10d0cfd58976afbebceb993bc4984b6c
@@ -17,7 +17,7 @@ workspace:
   target_branch: main
   finish: push
 loop:
-  stage: archive-ready
+  stage: done
   goal_cycle: 2
   iteration: 1
   attempt: 1
@@ -26,7 +26,7 @@ loop:
   no_progress_count: 0
   execution_failure_count: 0
   previous_unresolved_ids: []
-  next_action: archive
+  next_action: null
 acceptance:
   - id: A1
     source: brief.md
@@ -365,5 +365,5 @@ history_overflow:
     recovery: 0
 verification_result: pass
 verification_report: verification.md
-archived: false
+archived: true
 created_at: 2026-10-14T17:18:31.985Z
