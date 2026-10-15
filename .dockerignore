@@ -20,3 +20,14 @@ docs
 web/test-results
 web/playwright-report
 .tmp-*
+.worktrees
+tmp-smoke
+manual-test-data
+tmp-data
+cdt-monitor
+ecs-controller
+.comet
+.codegraph
+.devin
+.omp
+.verifier-probe
