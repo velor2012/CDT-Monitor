@@ -17,6 +17,35 @@ export type Account = {
   daily_report_time?: string
 }
 
+export type RotationPool = {
+  id: number
+  name: string
+  cf_token?: string
+  token_configured: boolean
+  cf_zone_id: string
+  root_domain: string
+  domain_prefix: string
+  proxied: boolean
+  ddns_enabled: boolean
+  enabled: boolean
+  account_ids: number[]
+}
+
+export type RotationPoolState = { pool_id: number; current_account_id: number; last_rotate_date: string }
+
+export const emptyRotationPool = (): RotationPool => ({
+  id: 0,
+  name: '',
+  cf_token: '',
+  token_configured: false,
+  cf_zone_id: '',
+  root_domain: '',
+  domain_prefix: '',
+  proxied: false,
+  ddns_enabled: true,
+  enabled: false,
+  account_ids: [],
+})
 export type Config = {
   admin_password?: string
   traffic_threshold: number
@@ -35,6 +64,9 @@ export type Config = {
     webhook: { enabled: boolean; url: string; method: string; request_type: string; headers?: string; body: string; provider?: string; secret?: string; secret_configured?: boolean }
   }
   accounts: Account[]
+  rotation_time: string
+  rotation_pools: RotationPool[]
+  rotation_pool_states?: RotationPoolState[]
 }
 
 export type AccountSummary = {
@@ -102,10 +134,12 @@ export const defaultConfig = (): Config => ({
   timezone: 'Asia/Shanghai',
   enable_daily_report: false,
   daily_report_time: '22:00',
+  rotation_time: '00:00',
   notifications: {
     email: { enabled: false, to: '', host: '', port: 465, username: '', password: '', password_configured: false, security: 'ssl' },
     telegram: { enabled: false, token: '', token_configured: false, chat_id: '', proxy_type: 'none', proxy_url: '', proxy_ip: '', proxy_port: '', proxy_user: '', proxy_pass: '', proxy_password_configured: false },
     webhook: { enabled: false, url: '', method: 'GET', request_type: 'JSON', headers: '', body: '', provider: 'generic', secret: '', secret_configured: false },
   },
   accounts: [],
+  rotation_pools: [],
 })

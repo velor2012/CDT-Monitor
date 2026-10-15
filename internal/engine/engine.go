@@ -117,7 +117,7 @@ func (e *Engine) RunOnce(ctx context.Context) error {
 	if !acquired {
 		return ErrMonitorBusy
 	}
-	e.checkDailyReport(ctx, time.Now())
+	e.checkRotationPools(ctx, time.Now())
 	return e.enqueueMonitorCycle(ctx, time.Now())
 }
 
@@ -227,6 +227,18 @@ func (e *Engine) runJob(ctx context.Context, job domain.Job) (string, error) {
 			return e.generateAndSendDailyReportForAccounts(ctx, payload.AccountIDs, payload.ReportDate, job.ID)
 		}
 		return e.generateAndSendDailyReport(ctx, payload.Force, payload.AccountID)
+	case JobRotatePool:
+		var payload struct {
+			PoolID int64 `json:"pool_id"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return "", err
+		}
+		// Rotation waits up to ~2 minutes for the instance IP, so it needs
+		// a longer budget than the default 55s job timeout.
+		rotateCtx, rotateCancel := context.WithTimeout(context.WithoutCancel(ctx), 6*time.Minute)
+		defer rotateCancel()
+		return e.runRotation(rotateCtx, payload.PoolID)
 	default:
 		return "", fmt.Errorf("unknown job type %q", job.Type)
 	}
@@ -379,7 +391,11 @@ func (e *Engine) processAccount(ctx context.Context, accountID int64, force bool
 	}
 
 	effectiveKeepAlive := resolveKeepAlive(account, config)
-	if effectiveKeepAlive && !overThreshold && !statusChangedBySchedule && status == domain.StatusStopped && (!account.ScheduleEnabled || inTimeRange(now.Format("15:04"), account.StartTime, account.StopTime)) {
+	inRotationPool, poolErr := e.store.AccountInRotationPool(ctx, account.ID)
+	if poolErr != nil {
+		return "", poolErr
+	}
+	if effectiveKeepAlive && !inRotationPool && !overThreshold && !statusChangedBySchedule && status == domain.StatusStopped && (!account.ScheduleEnabled || inTimeRange(now.Format("15:04"), account.StartTime, account.StopTime)) {
 		key := fmt.Sprintf("keepalive:%d:%s", account.ID, now.Format("200601021504"))
 		fresh, recordErr := e.store.RecordActionEvent(ctx, key, account.ID, "keepalive", "attempting", "")
 		if recordErr != nil {

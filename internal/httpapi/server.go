@@ -23,6 +23,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/wang4386/CDT-Monitor/internal/domain"
 	"github.com/wang4386/CDT-Monitor/internal/engine"
+	"github.com/wang4386/CDT-Monitor/internal/notify"
 	"github.com/wang4386/CDT-Monitor/internal/security"
 	"github.com/wang4386/CDT-Monitor/internal/store"
 )
@@ -99,6 +100,8 @@ func New(st *store.Store, eng *engine.Engine, assets fs.FS, logger *slog.Logger,
 	mux.Handle("POST /api/v1/accounts/{id}/refresh", s.require("instance:control", http.HandlerFunc(s.refresh)))
 	mux.Handle("POST /api/v1/accounts/{id}/actions/{action}", s.require("instance:control", http.HandlerFunc(s.control)))
 	mux.Handle("PATCH /api/v1/accounts/{id}/settings", s.require("admin", http.HandlerFunc(s.updateAccountSettings)))
+	mux.Handle("POST /api/v1/rotation-pools/{id}/rotate", s.require("admin", http.HandlerFunc(s.rotatePool)))
+	mux.Handle("POST /api/v1/rotation-pools/{id}/test-ddns", s.require("admin", http.HandlerFunc(s.testPoolDDNS)))
 	mux.Handle("POST /api/v1/notifications/daily-report", s.require("admin", http.HandlerFunc(s.triggerDailyReport)))
 	mux.Handle("GET /api/v1/jobs/{id}", s.require("widget:read", http.HandlerFunc(s.job)))
 	mux.Handle("GET /api/v1/logs", s.require("admin", http.HandlerFunc(s.logs)))
@@ -555,6 +558,13 @@ func (s *Server) getConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scrubConfig(&config)
+	config.RotationPoolStates = make([]domain.RotationPoolState, 0)
+	for _, pool := range config.RotationPools {
+		state, stateErr := s.store.RotationPoolState(r.Context(), pool.ID)
+		if stateErr == nil {
+			config.RotationPoolStates = append(config.RotationPoolStates, state)
+		}
+	}
 	writeJSON(w, http.StatusOK, config)
 }
 
@@ -578,6 +588,10 @@ func (s *Server) saveConfig(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid_schedule_time", "关机时间必须使用 24 小时制 HH:MM 格式")
 			return
 		}
+	}
+	if _, err := normalizeClockTime(config.RotationTime, true); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_rotation_time", "轮转时刻必须使用 24 小时制 HH:MM 格式")
+		return
 	}
 	if err := s.store.SaveConfig(r.Context(), config); err != nil {
 		writeError(w, http.StatusBadRequest, "config_failed", err.Error())
@@ -620,6 +634,95 @@ func (s *Server) refreshAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"jobs": jobs})
+}
+
+func (s *Server) rotatePool(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt64(w, r, "id")
+	if !ok {
+		return
+	}
+	pools, err := s.store.ListRotationPools(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rotation_failed", err.Error())
+		return
+	}
+	var pool *domain.RotationPool
+	for index := range pools {
+		if pools[index].ID == id {
+			pool = &pools[index]
+			break
+		}
+	}
+	if pool == nil {
+		writeError(w, http.StatusNotFound, "pool_not_found", "轮转池不存在")
+		return
+	}
+	if !pool.Enabled {
+		writeError(w, http.StatusBadRequest, "pool_not_enabled", "轮转池未启用")
+		return
+	}
+	if len(pool.AccountIDs) < 2 {
+		writeError(w, http.StatusBadRequest, "pool_too_small", "池内至少需要 2 个实例才能轮转")
+		return
+	}
+	payload := fmt.Sprintf(`{"pool_id":%d}`, pool.ID)
+	uniqueKey := fmt.Sprintf("rotate:%d:manual:%d", pool.ID, time.Now().Unix())
+	job, err := s.engine.Enqueue(r.Context(), engine.JobRotatePool, 0, payload, uniqueKey)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "enqueue_failed", err.Error())
+		return
+	}
+	_ = s.store.AddLog(r.Context(), "audit", fmt.Sprintf("管理员手动触发轮转池 [%s] 切换", pool.Name))
+	writeJSON(w, http.StatusAccepted, job)
+}
+
+func (s *Server) testPoolDDNS(w http.ResponseWriter, r *http.Request) {
+	// Test against the unsaved editor state posted by the frontend, so the
+	// user can validate a config before saving it. Token stays DB-backed:
+	// an empty posted token falls back to the stored one.
+	var input struct {
+		CFToken      string `json:"cf_token"`
+		CFZoneID     string `json:"cf_zone_id"`
+		RootDomain   string `json:"root_domain"`
+		DomainPrefix string `json:"domain_prefix"`
+	}
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	token := strings.TrimSpace(input.CFToken)
+	if token == "" {
+		var err error
+		token, err = s.store.RotationPoolTokenByDomain(r.Context(), strings.TrimSpace(input.RootDomain))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "ddns_test_failed", err.Error())
+			return
+		}
+	}
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "token_missing", "Cloudflare API Token 未配置，请先填写或保存配置")
+		return
+	}
+	rootDomain := strings.ToLower(strings.TrimSpace(input.RootDomain))
+	rootDomain = strings.Trim(strings.Split(strings.TrimPrefix(strings.TrimPrefix(rootDomain, "https://"), "http://"), "/")[0], ".")
+	if rootDomain == "" || !strings.Contains(rootDomain, ".") {
+		writeError(w, http.StatusBadRequest, "invalid_root_domain", "根域名无效，例如 example.com")
+		return
+	}
+	recordName := strings.ToLower(strings.TrimSpace(input.DomainPrefix))
+	recordName = strings.Trim(recordName, ".-")
+	if recordName != "" {
+		recordName += "." + rootDomain
+	} else {
+		recordName = rootDomain
+	}
+	cf := notify.NewCloudflareClient()
+	details, err := cf.TestConnection(r.Context(), token, strings.TrimSpace(input.CFZoneID), rootDomain, recordName)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"success": false, "message": err.Error(), "details": details})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "message": "DDNS 配置有效", "details": details})
 }
 
 func (s *Server) control(w http.ResponseWriter, r *http.Request) {
@@ -960,6 +1063,9 @@ func applyConfigDefaults(config *domain.Config) {
 	if config.Notifications.Webhook.Provider == "" {
 		config.Notifications.Webhook.Provider = "generic"
 	}
+	if config.RotationTime == "" {
+		config.RotationTime = "00:00"
+	}
 }
 
 func scrubConfig(config *domain.Config) {
@@ -971,6 +1077,9 @@ func scrubConfig(config *domain.Config) {
 	config.Notifications.Webhook.Secret = ""
 	for index := range config.Accounts {
 		config.Accounts[index].AccessKeySecret = ""
+	}
+	for index := range config.RotationPools {
+		config.RotationPools[index].CFToken = ""
 	}
 }
 

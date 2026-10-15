@@ -93,7 +93,9 @@ func (s *Store) GetConfig(ctx context.Context) (domain.Config, error) {
 		Timezone:           valueOr(settings, "timezone", "Asia/Shanghai"),
 		EnableDailyReport:  boolSetting(settings, "enable_daily_report", false),
 		DailyReportTime:    valueOr(settings, "daily_report_time", "22:00"),
+		RotationTime:       valueOr(settings, "rotation_time", "00:00"),
 		Accounts:           accounts,
+		RotationPools:      []domain.RotationPool{},
 		Notifications: domain.NotificationConfig{
 			Email: domain.EmailConfig{
 				Enabled:            boolSetting(settings, "notify_email_enabled", true),
@@ -131,6 +133,11 @@ func (s *Store) GetConfig(ctx context.Context) (domain.Config, error) {
 			},
 		},
 	}
+	pools, err := s.ListRotationPools(ctx)
+	if err != nil {
+		return domain.Config{}, err
+	}
+	config.RotationPools = pools
 	return config, nil
 }
 
@@ -209,6 +216,7 @@ func (s *Store) saveConfig(ctx context.Context, config domain.Config, setup bool
 			"timezone":               config.Timezone,
 			"enable_daily_report":    strconv.FormatBool(config.EnableDailyReport),
 			"daily_report_time":      config.DailyReportTime,
+			"rotation_time":          config.RotationTime,
 			"notify_email_enabled":   strconv.FormatBool(config.Notifications.Email.Enabled),
 			"notify_email":           config.Notifications.Email.To,
 			"notify_host":            config.Notifications.Email.Host,
@@ -254,6 +262,9 @@ func (s *Store) saveConfig(ctx context.Context, config domain.Config, setup bool
 		}
 
 		if err := saveAccountsTx(ctx, tx, s, config.Accounts); err != nil {
+			return err
+		}
+		if err := saveRotationPoolsTx(ctx, tx, s, config.RotationPools); err != nil {
 			return err
 		}
 		return nil

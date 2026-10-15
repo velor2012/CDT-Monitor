@@ -11,8 +11,8 @@ import {
 import { APIError, api, fetchLatestReleaseFromGitHub, waitForJob } from './api'
 import TimePicker from './TimePicker'
 import {
-  APIKeyRecord, Account, AccountSummary, Config, History, Job, LogEntry, PasskeyRecord,
-  StatusResponse, SystemInfo, defaultConfig, emptyAccount,
+  APIKeyRecord, Account, AccountSummary, Config, History, Job, LogEntry, PasskeyRecord, RotationPool,
+  StatusResponse, SystemInfo, defaultConfig, emptyAccount, emptyRotationPool,
 } from './types'
 
 type Phase = 'loading' | 'setup' | 'login' | 'dashboard' | 'fatal'
@@ -119,6 +119,7 @@ export default function App() {
       {settingsOpen && config && (
         <SettingsPanel
           initial={config}
+          status={status}
           onClose={() => setSettingsOpen(false)}
           onSaved={(next) => { setConfig(next); setSettingsOpen(false); void refreshStatus(true) }}
           notify={notify}
@@ -577,8 +578,8 @@ function InstanceSettingsModal({
   )
 }
 
-function SettingsPanel({ initial, onClose, onSaved, notify }: { initial: Config; onClose: () => void; onSaved: (config: Config) => void; notify: (message: string, tone?: Toast['tone']) => void }) {
-  const [tab, setTab] = useState<'general' | 'accounts' | 'notify' | 'keys' | 'logs' | 'about'>('general')
+function SettingsPanel({ initial, status, onClose, onSaved, notify }: { initial: Config; status: StatusResponse; onClose: () => void; onSaved: (config: Config) => void; notify: (message: string, tone?: Toast['tone']) => void }) {
+  const [tab, setTab] = useState<'general' | 'accounts' | 'rotation' | 'notify' | 'keys' | 'logs' | 'about'>('general')
   const [config, setConfig] = useState<Config>(() => structuredClone(initial))
   const [busy, setBusy] = useState(false)
   const save = async () => {
@@ -598,7 +599,7 @@ function SettingsPanel({ initial, onClose, onSaved, notify }: { initial: Config;
     finally { setBusy(false) }
   }
   const tabs = [
-    ['general', <Settings />, '系统'], ['accounts', <Server />, '实例'], ['notify', <Bell />, '通知'], ['keys', <KeyRound />, 'API Key'], ['logs', <FileClock />, '日志'], ['about', <Info />, '关于'],
+    ['general', <Settings />, '系统'], ['accounts', <Server />, '实例'], ['rotation', <Globe2 />, '轮转池'], ['notify', <Bell />, '通知'], ['keys', <KeyRound />, 'API Key'], ['logs', <FileClock />, '日志'], ['about', <Info />, '关于'],
   ] as const
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-label="系统设置">
@@ -609,12 +610,13 @@ function SettingsPanel({ initial, onClose, onSaved, notify }: { initial: Config;
         <div className="settings-content">
           {tab === 'general' && <GeneralSettings config={config} onChange={setConfig} />}
           {tab === 'accounts' && <AccountSettings config={config} onChange={setConfig} />}
+          {tab === 'rotation' && <RotationSettings config={config} onChange={setConfig} status={status} notify={notify} />}
           {tab === 'notify' && <NotificationSettings config={config} onChange={setConfig} notify={notify} />}
           {tab === 'keys' && <APIKeySettings notify={notify} />}
           {tab === 'logs' && <LogSettings notify={notify} />}
           {tab === 'about' && <AboutSettings notify={notify} />}
         </div>
-        {(tab === 'general' || tab === 'accounts' || tab === 'notify') && <footer className="settings-footer"><button className="button button--primary" onClick={() => void save()} disabled={busy}>{busy ? <LoaderCircle className="spin" /> : <Save />}保存更改</button></footer>}
+        {(tab === 'general' || tab === 'accounts' || tab === 'rotation' || tab === 'notify') && <footer className="settings-footer"><button className="button button--primary" onClick={() => void save()} disabled={busy}>{busy ? <LoaderCircle className="spin" /> : <Save />}保存更改</button></footer>}
       </section>
     </div>
   )
@@ -632,6 +634,7 @@ function GeneralSettings({ config, onChange }: { config: Config; onChange: (conf
       <SelectField label="API 刷新间隔" value={intervalValue} options={[...refreshIntervals, { value: 'custom', label: '自定义' }]} onChange={updateInterval} />
       {intervalValue === 'custom' && <Field label="自定义间隔"><input type="number" min={minCustomAPIInterval} max={86400} step={1} value={config.api_interval} onChange={(event) => onChange({ ...config, api_interval: Math.max(minCustomAPIInterval, Math.min(86400, Number(event.target.value) || minCustomAPIInterval)) })} /><span className="suffix">秒</span></Field>}
       <Field label="系统时区"><input value={config.timezone} onChange={(event) => onChange({ ...config, timezone: event.target.value })} /></Field>
+      <TimePicker label="轮转时刻" value={config.rotation_time || '00:00'} onChange={(value) => onChange({ ...config, rotation_time: value })} />
       <div className="field"><label>阈值动作</label><Segmented value={config.threshold_action} options={[['stop_and_notify', '停机并通知'], ['notify_only', '仅通知']]} onChange={(value) => onChange({ ...config, threshold_action: value as Config['threshold_action'] })} /></div>
       <div className="field field--wide"><label>停机模式</label><Segmented value={config.shutdown_mode} options={[['KeepCharging', '普通停机'], ['StopCharging', '节省停机']]} onChange={(value) => onChange({ ...config, shutdown_mode: value as Config['shutdown_mode'] })} /></div>
     </div>
@@ -665,6 +668,91 @@ function AccountSettings({ config, onChange }: { config: Config; onChange: (conf
   return <div className="settings-section"><div className="section-title-row"><SectionTitle icon={<Server />} title="云端实例" subtitle="ALIYUN ACCOUNTS" /><button className="button button--secondary button--small" onClick={() => onChange({ ...config, accounts: [...config.accounts, emptyAccount()] })}><Plus />添加实例</button></div>
     <div className="account-settings-list">{config.accounts.length === 0 && <div className="subtle-empty"><Database />尚未配置实例</div>}{config.accounts.map((account, index) => <div className="account-editor" key={account.id || `new-${index}`}><div className="account-editor__head"><span>{account.remark || `实例 ${index + 1}`}</span><div className="account-editor__actions"><IconButton label="复制" onClick={() => clone(index)}><Copy /></IconButton><IconButton label="删除" tone="danger" onClick={() => remove(index)}><Trash2 /></IconButton></div></div><AccountFields account={account} onChange={(next) => update(index, next)} /></div>)}</div>
   </div>
+}
+
+function RotationSettings({ config, status, onChange, notify }: { config: Config; status: StatusResponse; onChange: (config: Config) => void; notify: (message: string, tone?: Toast['tone']) => void }) {
+  const pools = config.rotation_pools || []
+  const activeByPool = new Map((config.rotation_pool_states || []).map((state) => [state.pool_id, state.current_account_id]))
+  const statusByID = new Map(status.accounts.map((account) => [account.id, account]))
+  const update = (index: number, pool: RotationPool) => { const next = [...pools]; next[index] = pool; onChange({ ...config, rotation_pools: next }) }
+  const remove = (index: number) => onChange({ ...config, rotation_pools: pools.filter((_, current) => current !== index) })
+  const toggleAccount = (pool: RotationPool, id: number): RotationPool => ({
+    ...pool,
+    account_ids: pool.account_ids.includes(id) ? pool.account_ids.filter((current) => current !== id) : [...pool.account_ids, id],
+  })
+  const rotateNow = async (pool: RotationPool) => {
+    try {
+      await api(`/api/v1/rotation-pools/${pool.id}/rotate`, { method: 'POST', body: '{}' })
+      notify(`轮转池 [${pool.name}] 已开始切换，结果请查看运行日志`, 'success')
+    } catch (error) { notify(error instanceof Error ? error.message : '触发轮转失败', 'error') }
+  }
+  const testDDNS = async (pool: RotationPool) => {
+    try {
+      // Test the current editor state (unsaved changes included), not the DB copy.
+      const result = await api<{ success: boolean; message: string; details: Record<string, string> }>(`/api/v1/rotation-pools/${pool.id}/test-ddns`, {
+        method: 'POST',
+        body: JSON.stringify({ cf_token: pool.cf_token || '', cf_zone_id: pool.cf_zone_id || '', root_domain: pool.root_domain || '', domain_prefix: pool.domain_prefix || '' }),
+      })
+      const detail = Object.entries(result.details || {}).map(([key, value]) => `${key}: ${value}`).join('，')
+      notify(`${result.message}${detail ? `（${detail}）` : ''}`, result.success ? 'success' : 'error')
+    } catch (error) { notify(error instanceof Error ? error.message : '测试失败', 'error') }
+  }
+  return <div className="settings-section"><div className="section-title-row"><SectionTitle icon={<Globe2 />} title="轮转池" subtitle="ROTATION POOLS" /><button className="button button--secondary button--small" onClick={() => onChange({ ...config, rotation_pools: [...pools, emptyRotationPool()] })}><Plus />添加轮转池</button></div>
+    <p className="rotation-hint">每天在「系统 → 轮转时刻」按池内顺序轮转开机一台实例，成功绑定域名后关机其余实例。池内实例与「每日定时开关机」互斥。</p>
+    <div className="account-settings-list">
+      {pools.length === 0 && <div className="subtle-empty"><Globe2 />尚未配置轮转池</div>}
+      {pools.map((pool, index) => <div className="account-editor" key={pool.id || `new-${index}`}>
+        <div className="account-editor__head">
+          <span>{pool.name || `轮转池 ${index + 1}`}</span>
+          <div className="account-editor__actions">
+            <button type="button" className="button button--secondary button--small" disabled={!pool.id || !pool.enabled || pool.account_ids.length < 2} onClick={() => void rotateNow(pool)} title={!pool.id ? '保存后可用' : !pool.enabled ? '池未启用' : pool.account_ids.length < 2 ? '池内至少 2 个实例' : '立即轮转到下一台实例'}><Play size={14} />立即轮转</button>
+            <button type="button" className="button button--secondary button--small" disabled={!pool.ddns_enabled || (!pool.token_configured && !pool.cf_token) || !pool.root_domain} onClick={() => void testDDNS(pool)} title={!pool.ddns_enabled ? 'DDNS 未启用' : !pool.root_domain ? '请先填写根域名' : !pool.token_configured && !pool.cf_token ? '请先填写或保存 Token' : '测试 Cloudflare 配置（只读，不修改记录）'}><ShieldCheck size={14} />测试 DDNS</button>
+            <IconButton label="删除" tone="danger" onClick={() => remove(index)}><Trash2 /></IconButton>
+          </div>
+        </div>
+        <div className="form-grid account-fields">
+          <Field label="名称"><input value={pool.name} onChange={(event) => update(index, { ...pool, name: event.target.value })} placeholder="中继池 A" /></Field>
+          <Field label={`Cloudflare Token${pool.token_configured ? ' · 已配置' : ''}`}><input type="password" autoComplete="new-password" value={pool.cf_token || ''} onChange={(event) => update(index, { ...pool, cf_token: event.target.value })} placeholder={pool.token_configured ? '留空保持不变' : '输入 API Token'} /></Field>
+          <Field label="Zone ID"><input value={pool.cf_zone_id} onChange={(event) => update(index, { ...pool, cf_zone_id: event.target.value })} placeholder="留空自动解析" /></Field>
+          <Field label="根域名"><input value={pool.root_domain} onChange={(event) => update(index, { ...pool, root_domain: event.target.value })} placeholder="example.com" /></Field>
+          <Field label="域名前缀"><input value={pool.domain_prefix} onChange={(event) => update(index, { ...pool, domain_prefix: event.target.value })} placeholder="留空使用根域名，如 relay" /></Field>
+          <ToggleRow title="Cloudflare 代理" icon={<Globe2 />} checked={pool.proxied} onChange={(checked) => update(index, { ...pool, proxied: checked })} />
+          <ToggleRow title="启用 DDNS" icon={<Globe2 />} checked={pool.ddns_enabled} onChange={(checked) => update(index, { ...pool, ddns_enabled: checked })} />
+          <ToggleRow title="启用轮转" icon={<Zap />} checked={pool.enabled} onChange={(checked) => update(index, { ...pool, enabled: checked })} />
+        </div>
+        <div className="rotation-members">
+          <MultiSelectField
+            label="池内实例"
+            values={pool.account_ids.map(String)}
+            options={config.accounts.filter((account) => !account.schedule_enabled).map((account) => ({ value: String(account.id), label: account.remark || account.instance_id || `实例 ${account.id}`, meta: account.region_id }))}
+            onChange={(values) => update(index, { ...pool, account_ids: values.map(Number) })}
+            searchable
+            searchPlaceholder="搜索备注、实例 ID 或地域"
+            emptyLabel="暂无可用实例（已开启每日定时开关机的实例不能加入）"
+          />
+        </div>
+        {pool.account_ids.length > 0 && <div className="rotation-grid">
+          {pool.account_ids.map((id) => {
+            const account = config.accounts.find((current) => current.id === id)
+            const summary = statusByID.get(id)
+            if (!account) return null
+            const active = activeByPool.get(pool.id) === id
+            return <div className={`rotation-cell ${active ? 'rotation-cell--active' : ''}`} key={id} title={active ? `当前活跃 · ${summary?.instance_status || 'Unknown'}` : summary?.instance_status || 'Unknown'}>
+              <span className={`status-dot status-dot--${dotTone(summary?.instance_status)}`} />
+              <span className="rotation-cell__label">{account.remark || account.instance_id || `实例 ${id}`}</span>
+              {active && <Zap size={13} className="rotation-cell__active-icon" />}
+            </div>
+          })}
+        </div>}
+      </div>)}
+    </div>
+  </div>
+}
+
+function dotTone(status?: string): 'green' | 'red' | 'gray' {
+  if (status === 'Running') return 'green'
+  if (status === 'Stopped') return 'red'
+  return 'gray'
 }
 
 function AccountFields({ account, onChange, compact = false }: { account: Account; onChange: (account: Account) => void; compact?: boolean }) {
@@ -1063,6 +1151,126 @@ function ElegantSelect({ id, value, options, onChange, searchable, searchPlaceho
 
   return <div className={`select-control ${open ? 'open' : ''}`} ref={rootRef}>
     {searchable && open ? <div className="select-search"><Search aria-hidden="true" /><input ref={searchRef} id={id} role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={activeOptionId} autoComplete="off" spellCheck={false} value={query} placeholder={searchPlaceholder} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0) }} onKeyDown={handleKeyDown} /><ChevronDown className="select-chevron" aria-hidden="true" /></div> : <button id={id} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-activedescendant={activeOptionId} className="select-trigger" onClick={() => open ? closeSelect() : openSelect()} onKeyDown={handleKeyDown}><span className="select-trigger__label">{selected?.label || value || '请选择'}</span>{selected?.meta && <code>{selected.meta}</code>}<ChevronDown className="select-chevron" aria-hidden="true" /></button>}
+    {open && menu && createPortal(menu, document.body)}
+  </div>
+}
+
+function MultiSelectField({ label, values, options, onChange, searchable = false, searchPlaceholder = '搜索选项', emptyLabel = '暂无可选项' }: { label: string; values: string[]; options: SelectOption[]; onChange: (values: string[]) => void; searchable?: boolean; searchPlaceholder?: string; emptyLabel?: string }) {
+  const id = useId()
+  const selected = options.filter((option) => values.includes(option.value))
+  const summary = selected.length === 0 ? '选择实例' : selected.length === 1 ? selected[0].label : `已选 ${selected.length} 项`
+  return <div className="field"><label htmlFor={id}>{label}</label>
+    <MultiSelect id={id} values={values} options={options} onChange={onChange} searchable={searchable} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} summary={summary} />
+  </div>
+}
+
+function MultiSelect({ id, values, options, onChange, searchable, searchPlaceholder, emptyLabel, summary }: { id: string; values: string[]; options: SelectOption[]; onChange: (values: string[]) => void; searchable: boolean; searchPlaceholder: string; emptyLabel: string; summary: string }) {
+  const listId = `${id}-listbox`
+  const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [position, setPosition] = useState<SelectPosition | null>(null)
+  const normalizedQuery = query.trim().toLocaleLowerCase('zh-CN')
+  const filteredOptions = searchable && normalizedQuery
+    ? options.filter((option) => `${option.label} ${option.meta || ''} ${option.value}`.toLocaleLowerCase('zh-CN').includes(normalizedQuery))
+    : options
+  const activeOptionId = open && filteredOptions[activeIndex] ? `${listId}-option-${activeIndex}` : undefined
+
+  const updatePosition = useCallback(() => {
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const availableBelow = window.innerHeight - rect.bottom - 12
+    const availableAbove = rect.top - 12
+    const placement = availableBelow >= 220 || availableBelow >= availableAbove ? 'down' : 'up'
+    const available = placement === 'down' ? availableBelow : availableAbove
+    setPosition({
+      left: Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - rect.width - 12)),
+      top: placement === 'down' ? rect.bottom + 8 : rect.top - 8,
+      width: rect.width,
+      maxHeight: Math.max(120, Math.min(320, available - 8)),
+      placement,
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open, updatePosition])
+
+  useEffect(() => {
+    if (!open) return
+    const handleOutside = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('pointerdown', handleOutside, true)
+    return () => document.removeEventListener('pointerdown', handleOutside, true)
+  }, [open])
+
+  useEffect(() => {
+    if (open && searchable) window.requestAnimationFrame(() => searchRef.current?.focus())
+  }, [open, searchable])
+
+  const openSelect = () => {
+    setQuery('')
+    setActiveIndex(0)
+    setOpen(true)
+  }
+  const closeSelect = (restoreFocus = false) => {
+    setOpen(false)
+    setQuery('')
+    if (restoreFocus) window.requestAnimationFrame(() => (rootRef.current?.querySelector('[role="combobox"]') as HTMLElement | null)?.focus())
+  }
+  const toggle = (option: SelectOption) => {
+    onChange(values.includes(option.value) ? values.filter((value) => value !== option.value) : [...values, option.value])
+  }
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (!open && ['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
+      event.preventDefault()
+      openSelect()
+      return
+    }
+    if (!open) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeSelect(true)
+    } else if (event.key === 'Tab') {
+      closeSelect()
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (filteredOptions.length) setActiveIndex((index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + filteredOptions.length) % filteredOptions.length)
+    } else if (event.key === 'Enter' && filteredOptions[activeIndex]) {
+      event.preventDefault()
+      toggle(filteredOptions[activeIndex])
+    }
+  }
+
+  const menu = position && (
+    <div ref={menuRef} id={listId} role="listbox" aria-multiselectable="true" className={`select-popover select-popover--${position.placement}`} style={{ left: position.left, top: position.top, width: position.width, maxHeight: position.maxHeight }}>
+      {filteredOptions.length ? filteredOptions.map((option, index) => {
+        const isSelected = values.includes(option.value)
+        return <button type="button" role="option" id={`${listId}-option-${index}`} aria-selected={isSelected} className={`select-option ${index === activeIndex ? 'active' : ''}`} key={option.value} onMouseMove={() => setActiveIndex(index)} onClick={() => toggle(option)}>
+          <span className="select-option__label">{option.label}</span>
+          <span className="select-option__aside">{option.meta && <code>{option.meta}</code>}{isSelected && <Check aria-hidden="true" />}</span>
+        </button>
+      }) : <div className="select-empty"><Search aria-hidden="true" /><span>{emptyLabel}</span></div>}
+    </div>
+  )
+
+  return <div className={`select-control ${open ? 'open' : ''}`} ref={rootRef}>
+    {searchable && open ? <div className="select-search"><Search aria-hidden="true" /><input ref={searchRef} id={id} role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={activeOptionId} autoComplete="off" spellCheck={false} value={query} placeholder={searchPlaceholder} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0) }} onKeyDown={handleKeyDown} /><ChevronDown className="select-chevron" aria-hidden="true" /></div> : <button id={id} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} aria-activedescendant={activeOptionId} className="select-trigger" onClick={() => open ? closeSelect() : openSelect()} onKeyDown={handleKeyDown}><span className="select-trigger__label">{summary}</span><ChevronDown className="select-chevron" aria-hidden="true" /></button>}
     {open && menu && createPortal(menu, document.body)}
   </div>
 }

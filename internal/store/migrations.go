@@ -152,6 +152,25 @@ CREATE TABLE IF NOT EXISTS daily_traffic_snapshots (
     updated_at INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY(account_id, date_str)
 );
+CREATE TABLE IF NOT EXISTS rotation_pools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL DEFAULT '',
+    cf_token TEXT NOT NULL DEFAULT '',
+    cf_zone_id TEXT NOT NULL DEFAULT '',
+    domain TEXT NOT NULL DEFAULT '',
+    root_domain TEXT NOT NULL DEFAULT '',
+    domain_prefix TEXT NOT NULL DEFAULT '',
+    proxied INTEGER NOT NULL DEFAULT 0,
+    ddns_enabled INTEGER NOT NULL DEFAULT 1,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    account_ids TEXT NOT NULL DEFAULT '[]',
+    deleted_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS rotation_pool_states (
+    pool_id INTEGER PRIMARY KEY,
+    current_account_id INTEGER NOT NULL DEFAULT 0,
+    last_rotate_date TEXT NOT NULL DEFAULT ''
+);
 `
 
 func (s *Store) Migrate(ctx context.Context) error {
@@ -171,10 +190,32 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return err
 		}
 	}
+	for _, col := range []struct{ name, definition string }{
+		{"root_domain", "TEXT NOT NULL DEFAULT ''"},
+		{"domain_prefix", "TEXT NOT NULL DEFAULT ''"},
+		{"ddns_enabled", "INTEGER NOT NULL DEFAULT 1"},
+	} {
+		if err := s.ensureColumn(ctx, "rotation_pools", col.name, col.definition); err != nil {
+			return err
+		}
+	}
+	// Backfill: split the legacy full-domain column into root + prefix.
+	_, err := s.db.ExecContext(ctx, `UPDATE rotation_pools SET root_domain=domain WHERE root_domain='' AND domain<>''`)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `UPDATE rotation_pools SET domain_prefix='' WHERE domain=root_domain`)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `UPDATE rotation_pools SET domain_prefix=replace(replace(domain, '.' || root_domain, ''), '.', '-') WHERE domain_prefix='' AND root_domain<>'' AND domain LIKE '%.' || root_domain`)
+	if err != nil {
+		return err
+	}
 	if err := s.migrateLegacyStats(ctx); err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, unixepoch())`)
+	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, unixepoch())`)
 	return err
 }
 

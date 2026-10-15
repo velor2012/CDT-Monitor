@@ -22,6 +22,10 @@ func (billingTestProvider) GetInstanceStatus(context.Context, domain.Account, st
 	return domain.StatusRunning, nil
 }
 
+func (billingTestProvider) GetInstancePublicIP(context.Context, domain.Account, string) (string, error) {
+	return "203.0.113.10", nil
+}
+
 func (billingTestProvider) ControlInstance(context.Context, domain.Account, string, string, string) error {
 	return nil
 }

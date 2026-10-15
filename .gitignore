@@ -28,3 +28,10 @@ android-widget/local.properties
 android-widget/**/build/
 *.jks
 *.keystore
+# >>> Comet managed project state >>>
+!/.comet/
+/.comet/*
+!/.comet/config.yaml
+# <<< Comet managed project state <<<
+tmp-smoke/
+cdt-monitor binary

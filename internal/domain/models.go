@@ -81,6 +81,26 @@ type NotificationConfig struct {
 	Webhook  WebhookConfig  `json:"webhook"`
 }
 
+type RotationPool struct {
+	ID              int64   `json:"id"`
+	Name            string  `json:"name"`
+	CFToken         string  `json:"cf_token,omitempty"`
+	TokenConfigured bool    `json:"token_configured"`
+	CFZoneID        string  `json:"cf_zone_id"`
+	RootDomain      string  `json:"root_domain"`
+	DomainPrefix    string  `json:"domain_prefix"`
+	Proxied         bool    `json:"proxied"`
+	DDNSEnabled     bool    `json:"ddns_enabled"`
+	Enabled         bool    `json:"enabled"`
+	AccountIDs      []int64 `json:"account_ids"`
+}
+
+type RotationPoolState struct {
+	PoolID           int64  `json:"pool_id"`
+	CurrentAccountID int64  `json:"current_account_id"`
+	LastRotateDate   string `json:"last_rotate_date"`
+}
+
 type Config struct {
 	AdminPassword      string             `json:"admin_password,omitempty"`
 	TrafficThreshold   int                `json:"traffic_threshold"`
@@ -93,34 +113,40 @@ type Config struct {
 	Timezone           string             `json:"timezone"`
 	EnableDailyReport  bool               `json:"enable_daily_report"`
 	DailyReportTime    string             `json:"daily_report_time"`
+	RotationTime       string             `json:"rotation_time"`
 	Notifications      NotificationConfig `json:"notifications"`
 	Accounts           []Account          `json:"accounts"`
+	RotationPools      []RotationPool     `json:"rotation_pools"`
+	// RotationPoolStates is read-only UI output (current active instance per
+	// pool); the frontend echoes it back on PUT, so it must decode, but it is
+	// never persisted from config saves.
+	RotationPoolStates []RotationPoolState `json:"rotation_pool_states,omitempty"`
 }
 
 type AccountSummary struct {
-	ID             int64     `json:"id"`
-	Account        string    `json:"account"`
-	Remark         string    `json:"remark"`
-	Region         string    `json:"region"`
-	RegionName     string    `json:"region_name"`
-	FlowTotal      float64   `json:"flow_total"`
-	FlowUsed       float64   `json:"flow_used"`
-	Percentage     float64   `json:"percentage"`
-	Threshold      int       `json:"threshold"`
-	OverThreshold  bool      `json:"over_threshold"`
-	InstanceStatus string    `json:"instance_status"`
-	LastUpdated    time.Time `json:"last_updated"`
-	Stale          bool      `json:"stale"`
-	MonthlyCost    *float64  `json:"monthly_cost,omitempty"`
-	Balance        *float64  `json:"balance,omitempty"`
-	Currency       string    `json:"currency,omitempty"`
-	BillingError   string    `json:"billing_error,omitempty"`
-	KeepAlive      *bool     `json:"keep_alive"`
-	ShutdownMode   string    `json:"shutdown_mode"`
-	ScheduleEnabled bool     `json:"schedule_enabled"`
-	StartTime      string    `json:"start_time,omitempty"`
-	StopTime       string    `json:"stop_time,omitempty"`
-	DailyReport    *bool     `json:"daily_report"`
+	ID              int64     `json:"id"`
+	Account         string    `json:"account"`
+	Remark          string    `json:"remark"`
+	Region          string    `json:"region"`
+	RegionName      string    `json:"region_name"`
+	FlowTotal       float64   `json:"flow_total"`
+	FlowUsed        float64   `json:"flow_used"`
+	Percentage      float64   `json:"percentage"`
+	Threshold       int       `json:"threshold"`
+	OverThreshold   bool      `json:"over_threshold"`
+	InstanceStatus  string    `json:"instance_status"`
+	LastUpdated     time.Time `json:"last_updated"`
+	Stale           bool      `json:"stale"`
+	MonthlyCost     *float64  `json:"monthly_cost,omitempty"`
+	Balance         *float64  `json:"balance,omitempty"`
+	Currency        string    `json:"currency,omitempty"`
+	BillingError    string    `json:"billing_error,omitempty"`
+	KeepAlive       *bool     `json:"keep_alive"`
+	ShutdownMode    string    `json:"shutdown_mode"`
+	ScheduleEnabled bool      `json:"schedule_enabled"`
+	StartTime       string    `json:"start_time,omitempty"`
+	StopTime        string    `json:"stop_time,omitempty"`
+	DailyReport     *bool     `json:"daily_report"`
 	DailyReportTime string    `json:"daily_report_time,omitempty"`
 }
 

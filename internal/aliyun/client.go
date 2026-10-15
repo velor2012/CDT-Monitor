@@ -26,6 +26,7 @@ import (
 type Provider interface {
 	GetTraffic(ctx context.Context, account domain.Account, secret string) (float64, error)
 	GetInstanceStatus(ctx context.Context, account domain.Account, secret string) (string, error)
+	GetInstancePublicIP(ctx context.Context, account domain.Account, secret string) (string, error)
 	ControlInstance(ctx context.Context, account domain.Account, secret, action, shutdownMode string) error
 	GetAccountBalance(ctx context.Context, account domain.Account, secret string) (BillingBalance, error)
 	GetInstanceBill(ctx context.Context, account domain.Account, secret, cycle string) (BillingBill, error)
@@ -116,6 +117,46 @@ func (c *Client) GetInstanceStatus(ctx context.Context, account domain.Account, 
 		return domain.StatusUnknown, nil
 	}
 	return status, nil
+}
+
+// GetInstancePublicIP returns the instance's public IPv4 via DescribeInstances,
+// preferring the ECS public IP and falling back to the bound EIP. Empty when
+// no public IPv4 is assigned yet.
+func (c *Client) GetInstancePublicIP(ctx context.Context, account domain.Account, secret string) (string, error) {
+	if account.InstanceID == "" {
+		return "", errors.New("instance_id is required")
+	}
+	params := map[string]string{"RegionId": account.RegionID, "InstanceId": account.InstanceID}
+	result, err := c.call(ctx, account.AccessKeyID, secret, account.RegionID, "ecs."+account.RegionID+".aliyuncs.com", "2014-05-26", "DescribeInstances", params)
+	if err != nil {
+		return "", err
+	}
+	instances := nestedSlice(result, "Instances", "Instance")
+	if len(instances) == 0 {
+		return "", nil
+	}
+	instance, ok := instances[0].(map[string]any)
+	if !ok {
+		return "", nil
+	}
+	if ip := firstIP(instance["PublicIpAddress"]); ip != "" {
+		return ip, nil
+	}
+	if eip, ok := instance["EipAddress"].(map[string]any); ok {
+		if ip := stringValue(eip["IpAddress"]); ip != "" {
+			return ip, nil
+		}
+	}
+	return "", nil
+}
+
+func firstIP(value any) string {
+	if obj, ok := value.(map[string]any); ok {
+		if addresses, ok := obj["IpAddress"].([]any); ok && len(addresses) > 0 {
+			return stringValue(addresses[0])
+		}
+	}
+	return ""
 }
 
 func (c *Client) ControlInstance(ctx context.Context, account domain.Account, secret, action, shutdownMode string) error {
