@@ -752,6 +752,7 @@ func RegionName(region string) string {
 		"cn-hangzhou": "华东 1（杭州）", "cn-shanghai": "华东 2（上海）", "cn-qingdao": "华北 1（青岛）", "cn-beijing": "华北 2（北京）",
 		"cn-zhangjiakou": "华北 3（张家口）", "cn-huhehaote": "华北 5（呼和浩特）", "cn-wulanchabu": "华北 6（乌兰察布）",
 		"cn-shenzhen": "华南 1（深圳）", "cn-heyuan": "华南 2（河源）", "cn-guangzhou": "华南 3（广州）", "cn-chengdu": "西南 1（成都）", "ap-northeast-1": "日本（东京）", "ap-northeast-2": "韩国（首尔）",
+		"ap-southeast-7": "泰国（曼谷）", "ap-southeast-6": "菲律宾（马尼拉）", "ap-southeast-3": "马来西亚（吉隆坡）",
 	}
 	if name := names[region]; name != "" {
 		return name

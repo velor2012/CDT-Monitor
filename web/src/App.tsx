@@ -29,6 +29,7 @@ const regions: SelectOption[] = [
   ['cn-huhehaote', '华北 5（呼和浩特）'], ['cn-wulanchabu', '华北 6（乌兰察布）'], ['cn-shenzhen', '华南 1（深圳）'],
   ['cn-heyuan', '华南 2（河源）'], ['cn-guangzhou', '华南 3（广州）'], ['cn-chengdu', '西南 1（成都）'],
   ['ap-southeast-1', '新加坡'], ['ap-northeast-1', '日本（东京）'], ['ap-northeast-2', '韩国（首尔）'], ['us-west-1', '美国（硅谷）'], ['us-east-1', '美国（弗吉尼亚）'],
+  ['ap-southeast-7', '泰国（曼谷）'], ['ap-southeast-6', '菲律宾（马尼拉）'], ['ap-southeast-3', '马来西亚（吉隆坡）'],
 ].map(([value, label]) => ({ value, label, meta: value }))
 
 const refreshIntervals: SelectOption[] = [
