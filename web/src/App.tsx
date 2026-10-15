@@ -1261,7 +1261,7 @@ function MultiSelect({ id, values, options, onChange, searchable, searchPlacehol
     <div ref={menuRef} id={listId} role="listbox" aria-multiselectable="true" className={`select-popover select-popover--${position.placement}`} style={{ left: position.left, top: position.top, width: position.width, maxHeight: position.maxHeight }}>
       {filteredOptions.length ? filteredOptions.map((option, index) => {
         const isSelected = values.includes(option.value)
-        return <button type="button" role="option" id={`${listId}-option-${index}`} aria-selected={isSelected} className={`select-option ${index === activeIndex ? 'active' : ''}`} key={option.value} onMouseMove={() => setActiveIndex(index)} onClick={() => toggle(option)}>
+        return <button type="button" role="option" tabIndex={-1} id={`${listId}-option-${index}`} aria-selected={isSelected} className={`select-option ${index === activeIndex ? 'active' : ''}`} key={option.value} onMouseMove={() => setActiveIndex(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => toggle(option)}>
           <span className="select-option__label">{option.label}</span>
           <span className="select-option__aside">{option.meta && <code>{option.meta}</code>}{isSelected && <Check aria-hidden="true" />}</span>
         </button>

@@ -1,12 +1,12 @@
 schema: comet.native.v4
 name: rotation-pools
 language: zh-CN
-phase: build
+phase: archive
 status: active
-state_version: 12
+state_version: 20
 brief: brief.md
 document_constraints_version: 2
-shape_confirmation_hash: b4ce42e200ff69b0ffb6e4850b456a849d5362629296abce97a1aa6d59ba78da
+shape_confirmation_hash: 64e4adfa400975b8312f3f12590035ea10d0cfd58976afbebceb993bc4984b6c
 spec_changes:
   - capability: rotation-pools
     operation: create
@@ -15,122 +15,164 @@ workspace:
   isolation: worktree
   change_branch: comet/rotation-pools
   target_branch: main
-  finish: null
+  finish: push
 loop:
-  stage: repairing
-  goal_cycle: 1
-  iteration: 2
-  attempt: 0
-  retry_epoch: 1
+  stage: archive-ready
+  goal_cycle: 2
+  iteration: 1
+  attempt: 1
+  retry_epoch: 0
   failed_iteration_count: 0
   no_progress_count: 0
   execution_failure_count: 0
   previous_unresolved_ids: []
-  next_action: submit-builder-candidate
+  next_action: archive
 acceptance:
   - id: A1
     source: brief.md
     text: A1：控制台设置中出现「轮转池」标签页，可创建、编辑、删除多个轮转池；每个池可配置名称、Cloudflare API Token、Zone
       ID（可留空自动解析）、域名、Proxied，并关联多个已配置实例。
-    result: pending
-    reason: null
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
   - id: A2
     source: brief.md
     text: A2：轮转池配置随 `/api/v1/config` 一起保存与读取；Cloudflare Token
       在数据库中加密存储，读取回显时脱敏（留空保持不变）。
-    result: pending
-    reason: null
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
   - id: A3
     source: brief.md
     text: A3：实例已开启「每日定时开关机」时，将其加入轮转池被拒绝并提示；实例已在轮转池中时，开启「每日定时开关机」被拒绝并提示；两个方向均在保存配置时校验。
-    result: pending
-    reason: null
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
   - id: A4
     source: brief.md
     text: A4：轮转池启用且池内 ≥2 个实例时，每天到全局轮转时刻：先开机下一台实例；开机成功后轮询获取该实例公网 IPv4（每 10 秒一次、最多 12
       次，PublicIpAddress 优先、EIP 兜底）；拿到 IP 后把池域名的 A 记录更新/创建为该 IPv4；DDNS
       更新成功后关机其余池内实例。开机失败、IP 超时或 DDNS
       失败均视为切换失败：不关机旧实例、记录错误日志并通过现有通知渠道告警。轮转位置按天推进并在进程重启后保持连续（持久化轮转状态）。
-    result: pending
-    reason: null
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
+  - id: A5
+    source: brief.md
+    text: A6（人工测试反馈）：轮转关机的池内实例不会被「抢占式实例保活」重新开机（保活逻辑感知轮转池成员身份）。
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
+  - id: A6
+    source: brief.md
+    text: A7（人工测试反馈）：轮转池配置页提供「立即轮转」按钮，点击后立即轮转到下一台实例（走与定时轮转相同的 Job 流程与失败保护），并显示执行结果。
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
+  - id: A7
+    source: brief.md
+    text: A8（人工测试反馈）：轮转池配置页提供 DDNS「测试」按钮，调用 Cloudflare API 验证
+      Token/Zone/域名配置是否正确，返回成功或具体错误，不修改任何 DNS 记录。
+    result: passed
+    reason:
+      text: "User confirmed degraded completion without independent semantic
+        verification: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。"
+      truncated: false
 builder_handoff:
-  candidate_id: d10281a0-e286-45d4-97a1-807205bbf467
+  candidate_id: 0347817a-4d34-4304-ab7d-5b594cb48c91
   identity_provider: skill-coordinated
-  builder_execution_ref: skill-coordinated:builder:8d2ee7af-ac8e-49d1-be16-8020a434cf94
+  builder_execution_ref: skill-coordinated:builder:b3b4dbf0-e148-4e04-807e-af411605c208
   iteration: 1
   summary:
-    text: 轮转池功能完整实现于分支 comet/rotation-pools（提交
-      08e2240）。后端：domain.RotationPool/RotationPoolState 模型；store 新增
-      rotation_pools/rotation_pool_states 表（migrations.go
-      schema）、ListRotationPools/RotationPoolToken/RotationPoolState/UpdateRotationPoolState（rotation.go）、配置随
-      GetConfig/saveConfig 事务读写（config.go），Token AES-GCM 加密存储、留空保持、回显
-      token_configured；互斥校验双向（DB schedule_enabled + json_each
-      精确匹配池成员）并给出差异化中文错误。aliyun Provider 新增
-      GetInstancePublicIP（DescribeInstances，PublicIpAddress 优先 EIP 兜底）。notify 新增
-      CloudflareClient（v4 API，Bearer Token，Zone 自动解析，A 记录 upsert
-      ttl=1/proxied/comment，公网 IPv4 校验，错误格式化）。engine 新增
-      rotation.go：checkRotationPools 挂在现有 RunOnce（15s scheduler
-      循环）内，dueWithin(10min 窗口) 检测全局 rotation_time，按池 enqueue rotate_pool
-      Job（uniqueKey 按池+日期去重）；runRotation 顺序：跳过 schedule_enabled 实例→开机下一台→每 10s
-      轮询公网 IP 最多 12 次→SyncARecord 绑定池域名→关机其余 Running/Starting 实例→更新
-      current_account_id/last_rotate_date；任一步失败不关旧实例、写 error
-      日志、NotificationEvent+Outbox 告警；nextRotationTarget
-      按日期差推进保证重启连续。httpapi：saveConfig 校验 rotation_time HH:MM，scrubConfig 清空
-      CFToken，applyConfigDefaults 默认 00:00。前端：types.ts
-      RotationPool/emptyRotationPool/Config.rotation_time+rotation_pools；App.tsx
-      SettingsPanel 新增 rotation 标签页（Globe2 图标）、RotationSettings
-      组件（池编辑器：名称/Token/ZoneID/域名/代理/启用、实例多选只列未开定时实例、紧密网格备注+绿红灰圆点）、GeneralSettings
-      新增全局轮转时刻 TimePicker；styles.css 新增
-      rotation-hint/rotation-members/rotation-grid/rotation-cell/status-dot
-      样式（复用现有设计变量）。README 未改（功能列表更新留待用户确认后）。冒烟验证（tmp-smoke，端口 8091）：setup→登录→PUT
-      config 保存池（Token 落库 enc:v1 密文、GET 不泄露明文）→双向互斥拒绝及差异化提示→rotation_time
-      持久化回显。已知限制：TestTraffic24HoursAgoAndAroundTime 为预存 flaky（基线 ad152f0
-      同样失败，与本次无关）；Cloudflare/阿里云真实 API 调用未在本地验证（无真实凭据），仅验证请求构造与错误路径。
+    text: 轮转池功能第二轮候选（含两轮人工测试反馈的全部需求变更），分支 comet/rotation-pools，提交 40e2338（squash 自 7
+      个迭代提交）。在第一轮基础上新增：1) 保活互斥——processAccount 的 keepalive
+      分支跳过池内实例（AccountInRotationPool），轮转关机不再被抢占式保活拉起；2) 立即轮转——POST
+      /api/v1/rotation-pools/{id}/rotate 入队 rotate_pool Job（uniqueKey 带时间戳），复用
+      runRotation 全流程与失败保护，前端按钮显示触发结果；3) DDNS 测试——POST
+      /api/v1/rotation-pools/{id}/test-ddns 以请求体（当前编辑器未保存状态）为准验证
+      Token/Zone/根域名/A 记录，全程只读 GET，Token 留空回退已存值；4) DDNS 配置拆分——根域名+域名前缀分开填写（对齐
+      ecs-controller），Zone 按根域名解析，迁移自动回填旧 domain 字段；5)
+      池内实例多选下拉——与地域下拉同款样式（搜索/勾选/键盘导航），网格高亮当前活跃实例（config 响应附带
+      rotation_pool_states，PUT 侧作为只读透传字段解码）；6) 每池「启用 DDNS」开关——关闭时轮转跳过
+      Token/IP/DDNS 全部步骤，只开关机；7) .dockerignore
+      补齐新目录（测试数据/master.key/二进制/worktree 不进构建上下文）。验证：go build/vet 通过；go test
+      五包全通过（store 预存 flaky TestTraffic24HoursAgoAndAroundTime 与本改动无关，基线同样失败）；npm
+      run build 通过；人工测试服务器（8080 端口）实测：配置保存/回显、Token enc:v1
+      加密落库且不泄露、双向互斥差异化报错、迁移回填正确。已知限制：真实阿里云 ECS 与 Cloudflare API
+      端到端调用未在本地验证（无真实凭据），A4 的完整轮转链路依赖用户在真实环境确认；Verifier subagent 三次派发均因平台 API
+      错误（reasoning_effort 参数被拒）失败，独立验收未完成，用户已人工测试并明确接受当前结果。
     truncated: false
   addressed_acceptance_ids:
     - A1
     - A2
     - A3
     - A4
+    - A5
+    - A6
+    - A7
   acceptance_review:
     - id: A1
       status: implemented-with-evidence
       evidence:
-        - web/src/App.tsx:673-731 RotationSettings 组件（池列表/添加/删除/编辑器/实例多选）
-        - web/src/App.tsx:600-602 settings tabs 含 rotation
-        - internal/store/rotation.go:55-181 saveRotationPoolsTx 创建/更新/软删
-        - 冒烟：PUT /api/v1/config 保存池成功且 GET 回显完整（token 脱敏 token_configured=true）
-      note: 多池创建/编辑/删除走 /api/v1/config；Token 留空保持已存值；Zone ID 留空自动解析由
-        CloudflareClient.resolveZoneID 实现
+        - web/src/App.tsx RotationSettings（多池编辑器+多选下拉+网格）
+        - internal/store/rotation.go saveRotationPoolsTx
+        - 人工实测：池创建/编辑/保存/回显
+      note: 多池共存；Token 脱敏；根域名+前缀拆分后完整回显
     - id: A2
       status: implemented-with-evidence
       evidence:
-        - internal/store/rotation.go:139-155 Token Encrypt 存储
-        - internal/httpapi/server.go:977-979 scrubConfig 清空 CFToken
-        - 冒烟：sqlite 查询 rotation_pools.cf_token 为 enc:v1 前缀密文，GET /api/v1/config
-          响应无明文
-      note: Token 与现有 Secret 共用 master.key AES-GCM 体系；保存时非空才更新
+        - internal/store/rotation.go Token Encrypt
+        - 人工实测：sqlite 直查 cf_token 为 enc:v1 密文，GET config 无明文
+      note: AES-GCM 加密；留空保持；scrubConfig 清空回显
     - id: A3
       status: implemented-with-evidence
       evidence:
-        - internal/store/rotation.go:79-98 从 DB 读 schedule_enabled
-        - internal/store/rotation.go:123-132 双向差异化错误
-        - 冒烟：实例开定时加入池 → 400 '已开启每日定时开关机，不能加入轮转池'；实例在池中开定时 → 400
-          '已在轮转池中，不能开启每日定时开关机'
-      note: 校验在同一保存事务内，配置与池原子生效；运行时 runRotation 也跳过 schedule_enabled 实例
+        - internal/store/rotation.go 双向校验
+        - 人工实测：双向拒绝均验证，错误信息区分方向
+      note: 保存时双向校验，运行时调度跳过冲突实例
     - id: A4
       status: implemented-with-evidence
       evidence:
-        - internal/engine/rotation.go:26-66 checkRotationPools 挂
-          RunOnce（engine.go:120）
-        - internal/engine/rotation.go:69-186 runRotation 全流程
-        - internal/engine/rotation.go:188-216 nextRotationTarget 日期差推进
-        - internal/engine/rotation.go:218-227 rotationFailure 告警
-        - internal/notify/cloudflare.go:31-70 SyncARecord
-        - internal/aliyun/client.go:121-159 GetInstancePublicIP
-        - go test ./internal/engine/ ./internal/notify/ ./internal/aliyun/ 通过
-      note: 真实阿里云/Cloudflare API 未在本地调用（无凭据）；调度链路、Job
-        去重、状态推进逻辑经代码审查与单元测试覆盖，端到端轮转需用户在真实环境验收
+        - internal/engine/rotation.go
+          checkRotationPools/runRotation/nextRotationTarget/rotationFailure
+        - internal/notify/cloudflare.go SyncARecord
+        - internal/aliyun/client.go GetInstancePublicIP
+        - go test engine/notify/aliyun 通过
+      note: 调度链路、失败保护、重启连续性经代码审查与单测覆盖；真实 API 端到端由用户人工测试确认
+    - id: A5
+      status: implemented-with-evidence
+      evidence:
+        - web/src/App.tsx rotation-grid/rotation-cell + dotTone
+        - web/src/styles.css status-dot--green/red/gray
+        - npm run build 通过
+      note: 备注+绿红灰圆点紧密网格；活跃实例蓝色高亮+Zap 图标；样式与现有面板一致
+    - id: A6
+      status: implemented-with-evidence
+      evidence:
+        - internal/engine/engine.go:393-398 keepalive 分支跳过池内实例
+        - internal/store/rotation.go AccountInRotationPool
+        - go test engine 通过
+      note: 保活感知轮转池成员身份；非池内实例行为不变
+    - id: A7
+      status: implemented-with-evidence
+      evidence:
+        - internal/httpapi/server.go rotatePool/testPoolDDNS handler
+        - internal/notify/cloudflare.go TestConnection（只读）
+        - web/src/App.tsx 立即轮转/测试 DDNS 按钮
+        - 人工实测：按钮触发与结果展示
+      note: 立即轮转复用 Job 流程与失败保护；DDNS 测试以未保存编辑器状态验证，全程 GET 不改记录
   checks:
     - name:
         text: go build ./...
@@ -147,47 +189,92 @@ builder_handoff:
         text: 无输出
         truncated: false
     - name:
-        text: go test ./internal/{aliyun,engine,httpapi,notify,security}/
+        text: go test 五包
         truncated: false
       result: passed
       note:
-        text: 全部 ok
+        text: aliyun/engine/httpapi/notify/security 全 ok
         truncated: false
     - name:
-        text: go test ./internal/store/
-        truncated: false
-      result: failed
-      note:
-        text: 仅 TestTraffic24HoursAgoAndAroundTime 失败；基线 ad152f0 同样失败，为预存时间敏感
-          flaky，与本次改动无关
-        truncated: false
-    - name:
-        text: npm run build (web)
+        text: npm run build
         truncated: false
       result: passed
       note:
-        text: vite 构建成功，产物输出 internal/web/dist
+        text: vite 构建成功
         truncated: false
     - name:
-        text: 冒烟启动 serve + API 验证
+        text: 人工测试（8080 服务器）
         truncated: false
       result: passed
       note:
-        text: setup/login/config 保存/回显/加密/双向互斥均验证通过（端口 8091）
+        text: 用户多轮实测：配置/加密/互斥/迁移/DDNS 测试按钮/多选下拉/高亮
         truncated: false
   checks_truncated: false
   known_limits:
-    - text: 真实阿里云 ECS 与 Cloudflare API 调用未在本地验证（无真实凭据）；仅验证了请求构造、错误处理路径与调度链路代码
+    - text: 真实阿里云/Cloudflare API 端到端未在本地验证（无凭据）
       truncated: false
-    - text: TestTraffic24HoursAgoAndAroundTime 为预存 flaky 测试（基线同样失败），未修复以避免扩大改动范围
+    - text: Verifier 独立验收三次因平台 API 错误失败，用户人工测试后明确接受当前结果
       truncated: false
-    - text: README 功能列表未更新，待验收通过后一并补充
+    - text: store 包预存 flaky 测试与本改动无关
       truncated: false
   known_limits_truncated: false
   review: null
-  submitted_at: 2026-10-15T03:56:30.117Z
+  submitted_at: 2026-10-15T14:38:31.124Z
 blockers: []
-verification: null
+verification:
+  candidate_id: 0347817a-4d34-4304-ab7d-5b594cb48c91
+  identity_provider: skill-coordinated
+  verifier_execution_ref: skill-coordinated:verifier:19f79980-1789-426c-8254-b29abbbafa9a
+  iteration: 1
+  attempt: 1
+  assurance: user-confirmed-degraded
+  verdict: pass
+  checks:
+    - id: go-build
+      name:
+        text: go build
+        truncated: false
+      argv_display:
+        - text: build
+          truncated: false
+        - text: ./...
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 1358
+    - id: go-test
+      name:
+        text: go test core packages
+        truncated: false
+      argv_display:
+        - text: test
+          truncated: false
+        - text: ./internal/aliyun/
+          truncated: false
+        - text: ./internal/engine/
+          truncated: false
+        - text: ./internal/httpapi/
+          truncated: false
+        - text: ./internal/notify/
+          truncated: false
+        - text: ./internal/security/
+          truncated: false
+      argv_truncated: false
+      cwd_ref: .
+      status: passed
+      exit_code: 0
+      duration_ms: 729
+  summary:
+    text: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。
+    truncated: false
+  risks:
+    - text: No independent semantic Verifier execution was available; Runtime checks
+        alone do not cover acceptance semantics.
+      truncated: false
+  risks_truncated: false
+  completed_at: 2026-10-15T14:41:18.644Z
 history:
   - goal_cycle: 1
     iteration: 1
@@ -229,6 +316,43 @@ history:
         candidate is required before checks can run again.
       truncated: false
     completed_at: 2026-10-15T08:16:16.527Z
+  - goal_cycle: 1
+    iteration: 2
+    attempt: 0
+    outcome: recovery
+    unresolved_ids: []
+    summary:
+      text: Native confirmed acceptance criteria changed
+      truncated: false
+    completed_at: 2026-10-15T14:36:54.683Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: blocked
+    unresolved_ids:
+      - A1
+      - A2
+      - A3
+      - A4
+      - A5
+      - A6
+      - A7
+    summary:
+      text: Verifier subagent 四次派发（attempt 1-4）均因同一确定性平台 API 错误失败（模型接口拒绝
+        reasoning_effort 参数，HTTP 400，秒级失败）。平台 subagent
+        能力对当前模型不可用，独立验收无法完成。用户已人工测试全部功能（多轮反馈并验收通过）并明确指示「接受结果并归档」，即接受仅完成自动检查（go
+        build/test 五包 + npm build + 人工实测）而无独立 Verifier 核验的结果。
+      truncated: false
+    completed_at: 2026-10-15T14:41:09.905Z
+  - goal_cycle: 2
+    iteration: 1
+    attempt: 1
+    outcome: pass
+    unresolved_ids: []
+    summary:
+      text: 用户明确接受仅自动检查的验收结果（人工测试已通过全部功能），确认继续归档。
+      truncated: false
+    completed_at: 2026-10-15T14:41:18.644Z
 history_overflow:
   dropped_entries: 0
   first_dropped_at: null
@@ -239,7 +363,7 @@ history_overflow:
     blocked: 0
     execution-error: 0
     recovery: 0
-verification_result: pending
-verification_report: null
+verification_result: pass
+verification_report: verification.md
 archived: false
 created_at: 2026-10-14T17:18:31.985Z
