@@ -67,7 +67,7 @@ func NewClient() *Client {
 }
 
 func (c *Client) GetTraffic(ctx context.Context, account domain.Account, secret string) (float64, error) {
-	key := account.AccessKeyID + ":" + trafficClass(account.RegionID)
+	key := account.AccessKeyID + ":" + account.RegionID
 	c.trafficMu.Lock()
 	if cached, ok := c.traffic[key]; ok && time.Since(cached.createdAt) < 45*time.Second {
 		c.trafficMu.Unlock()
@@ -78,7 +78,7 @@ func (c *Client) GetTraffic(ctx context.Context, account domain.Account, secret 
 	if err != nil {
 		return 0, err
 	}
-	value, err := trafficFromResponse(result, trafficClass(account.RegionID))
+	value, err := trafficFromResponse(result, account.RegionID)
 	if err != nil {
 		return 0, err
 	}
@@ -363,7 +363,7 @@ func randomNonce() string {
 	return hex.EncodeToString(raw)
 }
 
-func trafficFromResponse(result map[string]any, class string) (float64, error) {
+func trafficFromResponse(result map[string]any, regionID string) (float64, error) {
 	items := asSlice(result["TrafficDetails"])
 	if len(items) == 0 {
 		if data, ok := result["Data"].(map[string]any); ok {
@@ -379,8 +379,7 @@ func trafficFromResponse(result map[string]any, class string) (float64, error) {
 		if !ok {
 			continue
 		}
-		region := stringValue(obj["BusinessRegionId"])
-		if trafficClass(region) == class {
+		if stringValue(obj["BusinessRegionId"]) == regionID {
 			total += number(obj["Traffic"])
 		}
 	}

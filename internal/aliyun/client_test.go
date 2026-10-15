@@ -38,8 +38,16 @@ func TestTrafficResponseAggregation(t *testing.T) {
 		map[string]any{"BusinessRegionId": "cn-beijing", "Traffic": float64(2 * 1024 * 1024 * 1024)},
 		map[string]any{"BusinessRegionId": "cn-hongkong", "Traffic": float64(4 * 1024 * 1024 * 1024)},
 	}}
-	traffic, err := trafficFromResponse(result, "china")
-	if err != nil || traffic != 3 {
+	traffic, err := trafficFromResponse(result, "cn-hangzhou")
+	if err != nil || traffic != 1 {
+		t.Fatalf("traffic=%v err=%v", traffic, err)
+	}
+	traffic, err = trafficFromResponse(result, "cn-hongkong")
+	if err != nil || traffic != 4 {
+		t.Fatalf("traffic=%v err=%v", traffic, err)
+	}
+	traffic, err = trafficFromResponse(result, "ap-southeast-7")
+	if err != nil || traffic != 0 {
 		t.Fatalf("traffic=%v err=%v", traffic, err)
 	}
 }
